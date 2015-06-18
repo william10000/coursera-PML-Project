@@ -33,4 +33,44 @@
 
 # Notes
 # train$classe contains values of correct movement A-E
+#  enable multi-core processing
+
+library(dplyr)
+
+
+library(doParallel)
+cl <- makeCluster(detectCores())
+registerDoParallel(cl) 
+
+
+
+
+# load datasets
+train_org <- read.csv("pml-training.csv")
+test <- read.csv("pml-testing.csv")
+
+train <- train_org # work with a copy of the training set so that we don't have to waste time reloading the original from disk
+
+class_names <- names(train_org) # get list of factor names
+
+col_na_train <- colSums(!is.na(train_org)) # find number of NAs in training set
+col_na_test <- colSums(!is.na(test)) # find number of NAs in test set
+
+
+##### remove NA columns from train dataset
+dont_use <- names(col_na_test[!(col_na_test>0)]) # create vector of names with nearly all NAs using test set
+
+
+for (i in 1 : length(dont_use)) {
+  train[, dont_use[i]] <- NULL
+}
+
+train$new_window <- NULL # these are mostly "no" - 19216 vs. 406 yes
+train$cvtd_timestamp <- NULL
+
+# create new training and validation sets
+
+
+
+
 
