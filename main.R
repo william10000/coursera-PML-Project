@@ -36,13 +36,12 @@
 #  enable multi-core processing
 
 library(dplyr)
+library(caret)
 
 
 library(doParallel)
 cl <- makeCluster(detectCores())
 registerDoParallel(cl) 
-
-
 
 
 # load datasets
@@ -65,12 +64,64 @@ for (i in 1 : length(dont_use)) {
   train[, dont_use[i]] <- NULL
 }
 
+##### remove unnecessary predictors name, row number, time stamp etc. - some were el
+train$raw_timestamp_part_1  <- NULL
 train$new_window <- NULL # these are mostly "no" - 19216 vs. 406 yes
 train$cvtd_timestamp <- NULL
 
+# these were eliminated after looking at varImp and checking histograms of "important' variables
+train$X <- NULL
+train$num_window <- NULL
+
 # create new training and validation sets
+folds <- createFolds(y = train$classe, k = 10, list = TRUE)
+
+# train on folds - run multiple times after checking varImp and histograms of important variables
+modFit1 <- train(classe ~ ., data = train[folds[1]$Fold01, ], method = "rf") # started 15:48 done before 16:03
+
+modFit2 <- train(classe ~ ., data = train[folds[2]$Fold02, ], method = "rf") # started 16:05 done before 16:07
+
+modFit3 <- train(classe ~ ., data = train[folds[3]$Fold03, ], method = "rf") # started 22:02 done before 22:04
+
+# check importance of variables to see if anything looks out of place
+varImp(modFit1)
+varImp(modFit2)
+varImp(modFit3)
+
+# this is not real cross validation - will do if I have time
+# predict on validation test sets
+pred_train1 <- predict(modFit1, train[folds[4]$Fold04,])
+pred_train2 <- predict(modFit2, train[folds[5]$Fold05,])
+pred_train3 <- predict(modFit3, train[folds[6]$Fold06,])
+
+# calculate out of sample errors
+oose1 <- (pred_train1 == train[folds[4]$Fold04,]$classe)/nrow(pred_train1)
+oose2 <- (pred_train2 == train[folds[5]$Fold04,]$classe)/nrow(pred_train2)
+oose2 <- (pred_train3 == train[folds[6]$Fold04,]$classe)/nrow(pred_train3)
+
+oose_tot <- mean(c(oose1, oose2, oose3))
+
+# predict on test set using different models - use majority vote - hope at least 2/3 are alike
+pred_test1 <- predict(modelFit1, test)
+pred_test2 <- predict(modelFit2, test)
+pred_test3 <- predict(modelFit3, test)
+
+# missClass = function(values,prediction){sum(((prediction > 0.5)*1) != values)/length(values)}
+# 
+# missClass(trainSA$chd, pred_train) # 0.27
+# missClass(testSA$chd, pred_test) # 0.31
 
 
 
+# put predictions here in the answers
+answers <- as.character()
 
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
 
+pml_write_files(answers)
