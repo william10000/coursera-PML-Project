@@ -7,6 +7,11 @@ output: html_document
 
 The overall strategy was to remove unnecessary columns based on course forums and exploring the initial data. Dividing the training set into smaller folds and running a random forest on a few of these folds revealed other variables that should not be used as classifiers. For example, the row number ended up as the most important variable but was removed after I realized that it was acutally the row number. The num_window factor was also removed after it's histogram revealed a flat even distribution suggesting that it was randomly distributed amongst the training set.
 
+After training 3 initial models, I took a majority vote bagging apporoach to further refine the predictions.
+
+- - -
+
+I used the caret package with the doParallel package model fitting and parallelization
 ```{r}
 # train$classe contains values of correct movement A-E
 library(caret)
@@ -15,19 +20,26 @@ library(caret)
 library(doParallel)
 cl <- makeCluster(detectCores())
 registerDoParallel(cl) 
+```
 
-
+Here, I load the data and split up the training set into 10 even folds so that I have some folds for validation
+```{r}
 # load datasets
 train_org <- read.csv("pml-training.csv")
 test <- read.csv("pml-testing.csv")
 
 train <- train_org # work with a copy of the training set so that we don't have to waste time reloading the original from disk
 
-class_names <- names(train_org) # get list of factor names
+# create new training and validation sets
+folds <- createFolds(y = train$classe, k = 10, list = TRUE) 
 
+class_names <- names(train_org) # get list of factor names
+```
+
+Here, I clean up the data biy removing columns that we don't necessarily need. Some columns were removed after using the varImp function to check 'important' factors. I ploted the most important factor to make sure it looked non-random. Random factors or factors that were obviously not related (num_window and X) were removed.
+```{r}
 col_na_train <- colSums(!is.na(train_org)) # find number of NAs in training set
 col_na_test <- colSums(!is.na(test)) # find number of NAs in test set
-
 
 ##### remove NA columns from train dataset
 dont_use <- names(col_na_test[!(col_na_test>0)]) # create vector of names with nearly all NAs using test set
@@ -45,29 +57,38 @@ train$cvtd_timestamp <- NULL
 # these were eliminated after looking at varImp and checking histograms of "important' variables
 train$X <- NULL
 train$num_window <- NULL
-
-# create new training and validation sets
-folds <- createFolds(y = train$classe, k = 10, list = TRUE)
-
-# train on folds - run multiple times after checking varImp and histograms of important variables
-# modFit1 <- train(classe ~ ., data = train[folds[1]$Fold01, ], method = "rf") # started 15:48 done before 16:03
-
-# modFit2 <- train(classe ~ ., data = train[folds[2]$Fold02, ], method = "rf") # started 16:05 done before 16:07
-
-# modFit3 <- train(classe ~ ., data = train[folds[3]$Fold03, ], method = "rf") # started 22:02 done before 22:04
 ```
 
-The modFit variables were commented out to speed up compiling the HTML.
-I had to catch a flight and ran out of time to do a real cross validation, but I created a random forest model for three different folds of the test set and tested these models against 3 other folds to see how similar the predictions were. These values were used to estimate an out of sample error
-
+Model training section: I trained 3 random forest models on different folds of the test set and validated these models on another 3 different folds of test set, or validation set. These validation predictions were used to calculate a mean out-of-sample error.
 ```{r}
+# set train function to use 10-fold cross-validation repeated 3 times on the training models
+# taken from http://topepo.github.io/caret/training.html
+fitControl <- trainControl(method = "repeatedcv", number = 10, repeats = 3) # too lazy to write my own CV function
+
+# train on different folds - run multiple times after checking varImp and histograms of important variables
+modFit1 <- train(classe ~ ., data = train[folds[1]$Fold01, ], method = "rf", trControl = fitControl)
+modFit2 <- train(classe ~ ., data = train[folds[2]$Fold02, ], method = "rf", trControl = fitControl)
+modFit3 <- train(classe ~ ., data = train[folds[3]$Fold03, ], method = "rf", trControl = fitControl) 
+
 # check importance of variables to see if anything looks out of place
 varImp(modFit1)
 varImp(modFit2)
 varImp(modFit3)
+```
 
-# this is not real cross validation - will do if I have time
-# predict on validation test sets
+```{r fig.width=6, fig.height=3}
+par(mfrow = c(1, 2))
+hist(train_org$X, main = "X is just a row number so not usefun")
+
+hist(train_org$num_window, main = "num_window appears randomly distributed")
+
+hist(train_org$roll_belt, main = "roll_belt appears to be important")
+```
+
+
+Once I was satisfied that the important variables were truly relevant, I calculated an out of sample error. I took the mean of the out-of-sammple error by using the three models to predict data for three different folds and compared how often my models were correct.
+```{r}
+# predict on 3 different valdation sets
 pred_train1 <- predict(modFit1, train[folds[4]$Fold04,])
 pred_train2 <- predict(modFit2, train[folds[5]$Fold05,])
 pred_train3 <- predict(modFit3, train[folds[6]$Fold06,])
@@ -82,13 +103,12 @@ sum(oose1)/length(oose1)
 sum(oose2)/length(oose2)
 sum(oose3)/length(oose3)
 ```
-This is our out of sample error
+This is our average out-of-sample error
 ```{r}
 oose_tot <- mean(c(oose1, oose2, oose3)) # estimate out-of-sample error is 95%
 ```
 
-Given an out of sample error of `oose_tot``, I would expect to get 1 out of the 20 test cases wrong. I decided to use a majority vote strategy to estimate the test result, hoping that at least two of the three models would agree on the same answer
-
+Given an out of sample error of `r oose_tot``, I would expect to get 1 out of the 20 test cases wrong. I decided to use a majority vote strategy to estimate the test result, hoping that at least two of the three models would agree on the same answer. Using five or more odd number of models would have been better, but I don't know how much improvement that would yield.
 ```{r}
 # predict on test set using different models - use majority vote - hope at least 2/3 are alike
 pred_test1 <- predict(modFit1, test)
@@ -108,25 +128,27 @@ for (i in 1 : nrow(pred_tot)) { # convert numbers to letters
   answers[i] <- LETTERS[as.numeric(final[i])]
 }
 
-pml_write_files = function(x){
-  n = length(x)
-  for(i in 1:n){
-    filename = paste0("problem_id_",i,".txt")
-    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
-  }
-}
-
-pml_write_files(answers)
-
 # visually check to see if we correctly calculated the majority
 final_answer <- cbind(pred_tot, answers)
 
 ```
 
 This is what the final predicted test set looked like along with column indicating the answer picked by the majority of the models.
-
 ```{r}
 final_answer
+
+```
+
+```{r}
+# pml_write_files = function(x){
+#   n = length(x)
+#   for(i in 1:n){
+#     filename = paste0("problem_id_",i,".txt")
+#     write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+#   }
+# }
+# 
+# pml_write_files(answers)
 
 ```
 
