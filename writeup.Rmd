@@ -1,3 +1,14 @@
+---
+title: "Practical Machine Learning Project"
+author: "William Wan"
+date: "Thursday, June 18, 2015"
+output: html_document
+---
+
+
+
+
+```{r}
 # Practical Machine Learning Project
 # William Wan
 # started on 2015-06-18
@@ -136,3 +147,14 @@ pml_write_files(answers)
 
 # visually check to see if we correctly calculated the majority
 cbind(pred_tot, answers)
+
+
+```
+
+You can also embed plots, for example:
+
+```{r, echo=FALSE}
+plot(cars)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
