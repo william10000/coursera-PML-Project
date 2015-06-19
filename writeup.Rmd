@@ -5,51 +5,13 @@ date: "Thursday, June 18, 2015"
 output: html_document
 ---
 
-
-
+The overall strategy was to remove unnecessary columns based on course forums and exploring the initial data. Dividing the training set into smaller folds and running a random forest on a few of these folds revealed other variables that should not be used as classifiers. For example, the row number ended up as the most important variable but was removed after I realized that it was acutally the row number. The num_window factor was also removed after it's histogram revealed a flat even distribution suggesting that it was randomly distributed amongst the training set.
 
 ```{r}
-# Practical Machine Learning Project
-# William Wan
-# started on 2015-06-18
-
-# main.R
-
-# see here for github.io pages https://class.coursera.org/predmachlearn-015/forum/thread?thread_id=67
-
-# What you should submit
-# 
-# The goal of your project is to predict the manner in which they did the
-# exercise. This is the "classe" variable in the training set. You may use any
-# of the other variables to predict with. You should create a report describing
-# how you built your model, how you used cross validation, what you think the
-# expected out of sample error is, and why you made the choices you did. You
-# will also use your prediction model to predict 20 different test cases.
-# 
-# 1. Your submission should consist of a link to a Github repo with your R
-# markdown and compiled HTML file describing your analysis. Please constrain the
-# text of the writeup to < 2000 words and the number of figures to be less than
-# 5. It will make it easier for the graders if you submit a repo with a gh-pages
-# branch so the HTML page can be viewed online (and you always want to make it
-# easy on graders :-). 
-# 2. You should also apply your machine learning algorithm
-# to the 20 test cases available in the test data above. Please submit your
-# predictions in appropriate format to the programming assignment for automated
-# grading. See the programming assignment for additional details.
-# 
-
-# strategy - 
-  # remove unnecessary columns - eg. date
-  # remove columns with all NA
-
-# Notes
 # train$classe contains values of correct movement A-E
-#  enable multi-core processing
-
-library(dplyr)
 library(caret)
 
-
+# to speed up model training
 library(doParallel)
 cl <- makeCluster(detectCores())
 registerDoParallel(cl) 
@@ -75,7 +37,7 @@ for (i in 1 : length(dont_use)) {
   train[, dont_use[i]] <- NULL
 }
 
-##### remove unnecessary predictors name, row number, time stamp etc. - some were el
+##### remove unnecessary predictors name, row number, time stamp etc.
 train$raw_timestamp_part_1  <- NULL
 train$new_window <- NULL # these are mostly "no" - 19216 vs. 406 yes
 train$cvtd_timestamp <- NULL
@@ -93,7 +55,12 @@ modFit1 <- train(classe ~ ., data = train[folds[1]$Fold01, ], method = "rf") # s
 modFit2 <- train(classe ~ ., data = train[folds[2]$Fold02, ], method = "rf") # started 16:05 done before 16:07
 
 modFit3 <- train(classe ~ ., data = train[folds[3]$Fold03, ], method = "rf") # started 22:02 done before 22:04
+```
 
+The modFit variables were commented out to speed up compiling the HTML.
+I had to catch a flight and ran out of time to do a real cross validation, but I created a random forest model for three different folds of the test set and tested these models against 3 other folds to see how similar the predictions were. These values were used to estimate an out of sample error
+
+```{r}
 # check importance of variables to see if anything looks out of place
 varImp(modFit1)
 varImp(modFit2)
@@ -114,10 +81,16 @@ oose3 <- (pred_train3 == train[folds[6]$Fold06,]$classe)
 sum(oose1)/length(oose1)
 sum(oose2)/length(oose2)
 sum(oose3)/length(oose3)
-
+```
+This is our out of sample error
+```{r}
 oose_tot <- mean(c(oose1, oose2, oose3)) # estimate out-of-sample error is 95%
+```
 
-# not right - predict on test set using different models - use majority vote - hope at least 2/3 are alike
+Given an out of sample error of ```oose_tot```, I would expect to get 1 out of the 20 test cases wrong. I decided to use a majority vote strategy to estimate the test result, hoping that at least two of the three models would agree on the same answer
+
+```{r}
+# predict on test set using different models - use majority vote - hope at least 2/3 are alike
 pred_test1 <- predict(modFit1, test)
 pred_test2 <- predict(modFit2, test)
 pred_test3 <- predict(modFit3, test)
@@ -146,15 +119,14 @@ pml_write_files = function(x){
 pml_write_files(answers)
 
 # visually check to see if we correctly calculated the majority
-cbind(pred_tot, answers)
-
+final_answer <- cbind(pred_tot, answers)
 
 ```
 
-You can also embed plots, for example:
+This is what the final predicted test set looked like along with column indicating the answer picked by the majority of the models.
 
-```{r, echo=FALSE}
-plot(cars)
+```{r}
+final_answer
+
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
