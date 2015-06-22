@@ -65,7 +65,7 @@ Model training section: I trained 3 random forest models on different folds of t
 # set train function to use 10-fold cross-validation repeated 3 times on the training models
 # taken from http://topepo.github.io/caret/training.html
 fitControl <- trainControl(method = "repeatedcv", number = 5, repeats = 3) # too lazy to write my own CV function
-ela
+
 # train on different folds - run multiple times after checking varImp and histograms of important variables
 start <- Sys.time()
 modFit1 <- train(classe ~ ., data = train[folds[1]$Fold01, ], method = "rf", trControl = fitControl)
