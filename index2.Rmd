@@ -14,6 +14,7 @@ After training 3 initial models, I took a majority vote bagging apporoach to fur
 I used the caret package with the doParallel package model fitting and parallelization
 ```{r}
 # train$classe contains values of correct movement A-E
+rm(list = ls())
 set.seed(1234)
 library(caret)
 
@@ -85,7 +86,7 @@ Model training section: I trained 3 random forest models on different folds of t
 ```{r}
 # set train function to use 10-fold cross-validation repeated 3 times on the training models
 # taken from http://topepo.github.io/caret/training.html
-fitControl <- trainControl(method = "repeatedcv", number = 5, repeats = 3) # too lazy to write my own CV function
+fitControl <- trainControl(method = "repeatedcv", number = 10, repeats = 3) # too lazy to write my own CV function
 
 # train on different folds - run multiple times after checking varImp and histograms of important variables
 start <- Sys.time()
@@ -188,7 +189,6 @@ elapsed_mod_1
 elapsed_mod_2
 elapsed_mod_3
 
-
 ```
 
 
@@ -214,12 +214,13 @@ B
 B
 B
 
-1 wrong as originally written
+1 wrong as originally written run yesterday w/o specific seed
+1 more wrong as originally written /w specific seed
 2 more wrong for 5 fold crossvalidation & elimating variables <15% important
 1 more wrong for 5 fold crossvalidation & elimating variables <10% important
 1 more wrong for 10 fold crossvalidation & elimating variables <10% important
 1 more wrong for 5 fold crossvalidation & elimating variables <5% important
-
+X more wrong for 10 fold crossvalidation & elimating variables <5% important 
 
 # 10 fold, 3 repeats ~ 10 min w/o parallelization - ~2.7 min /w parallelation
 # 5 fold, 3 repeats ~1.2 min per model /w parallelation 94% accuracy with 60 variables (all)
@@ -227,6 +228,8 @@ B
 # 5 fold, 3 repeats ~43s per model /w parallelation 95% accuracy with 33 variables (> 10% importance)
 # 10 fold, 3 repeats ~1.4min per model /w parallelation 95% accuracy with 33 variables (> 10% importance)
 # 5 fold, 3 repeats ~1.2min per model /w parallelation 95% accuracy with 50 variables (> 5% importance)
+# 10 fold, 3 repeats ~X.Xmin per model /w parallelation XX% accuracy with 33 variables (> 5% importance)
+
 
 
 ```{r}
