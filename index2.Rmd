@@ -52,12 +52,33 @@ for (i in 1 : length(dont_use)) {
 
 ##### remove unnecessary predictors name, row number, time stamp etc.
 train$raw_timestamp_part_1  <- NULL
+# train$raw_timestamp_part_2  <- NULL
 train$new_window <- NULL # these are mostly "no" - 19216 vs. 406 yes
 train$cvtd_timestamp <- NULL
 
-# these were eliminated after looking at varImp and checking histograms of "important' variables
+# these were eliminated after looking at varImp anda checking histograms of "important' variables
 train$X <- NULL
 train$num_window <- NULL
+
+# test run with all variables
+fitControl <- trainControl(method = "repeatedcv", number = 5, repeats = 3) # too lazy to write my own CV function
+
+# train on different folds - run multiple times after checking varImp and histograms of important variables
+start <- Sys.time()
+modFit1 <- train(classe ~ ., data = train[folds[1]$Fold01, ], method = "rf", trControl = fitControl)
+elapsed_initial_mod <- Sys.time() - start
+
+# eliminate more variables
+VI <- varImp(modFit1)
+plot(VI)
+# abline(v = 5, col = "red")
+impVar_index <- VI$importance > 5 # pick variables with > 10% importance
+dont_use2 <- row.names(VI$importance)[!impVar_index]
+
+for (i in 1 : length(dont_use2)) {
+  train[, dont_use2[i]] <- NULL
+}
+
 ```
 
 Model training section: I trained 3 random forest models on different folds of the test set and validated these models on another 3 different folds of test set, or validation set. These validation predictions were used to calculate a mean out-of-sample error.
@@ -65,22 +86,24 @@ Model training section: I trained 3 random forest models on different folds of t
 # set train function to use 10-fold cross-validation repeated 3 times on the training models
 # taken from http://topepo.github.io/caret/training.html
 fitControl <- trainControl(method = "repeatedcv", number = 5, repeats = 3) # too lazy to write my own CV function
-ela
+
 # train on different folds - run multiple times after checking varImp and histograms of important variables
 start <- Sys.time()
 modFit1 <- train(classe ~ ., data = train[folds[1]$Fold01, ], method = "rf", trControl = fitControl)
-elapsed <- Sys.time() - start
+elapsed_mod_1 <- Sys.time() - start
 
-# 10 fold, 3 repeats ~ 10 min w/o parallelization - ~2.7 min /w parallelation
-# 5 fold, 3 repeats ~ ~1.2 min /w parallelation
-
+start <- Sys.time()
 modFit2 <- train(classe ~ ., data = train[folds[2]$Fold02, ], method = "rf", trControl = fitControl)
+elapsed_mod_2 <- Sys.time() - start
+
+start <- Sys.time()
 modFit3 <- train(classe ~ ., data = train[folds[3]$Fold03, ], method = "rf", trControl = fitControl) 
+elapsed_mod_3 <- Sys.time() - start
 
 # check importance of variables to see if anything looks out of place
-varImp(modFit1)
-varImp(modFit2)
-varImp(modFit3)
+# varImp(modFit1)
+# varImp(modFit2)
+# varImp(modFit3)
 ```
 
 ```{r fig.width=6, fig.height=3}
@@ -100,7 +123,7 @@ pred_train1 <- predict(modFit1, train[folds[4]$Fold04,])
 pred_train2 <- predict(modFit2, train[folds[5]$Fold05,])
 pred_train3 <- predict(modFit3, train[folds[6]$Fold06,])
 
-# compare predictions with true results of validation sets
+# compare predictions with true results of validation sets # really accuracies
 oose1 <- (pred_train1 == train[folds[4]$Fold04,]$classe)
 oose2 <- (pred_train2 == train[folds[5]$Fold05,]$classe)
 oose3 <- (pred_train3 == train[folds[6]$Fold06,]$classe)
@@ -112,10 +135,10 @@ sum(oose3)/length(oose3)
 ```
 This is our average out-of-sample error
 ```{r}
-oose_tot <- mean(c(oose1, oose2, oose3)) # estimate out-of-sample error is 95%
+oose_tot <- 1- mean(c(oose1, oose2, oose3)) # estimate out-of-sample error is 95%
 ```
 
-Given an out of sample error of `r oose_tot``, I would expect to get 1 out of the 20 test cases wrong. I decided to use a majority vote strategy to estimate the test result, hoping that at least two of the three models would agree on the same answer. Using five or more odd number of models would have been better, but I don't know how much improvement that would yield.
+Given an out of sample error of `r oose_tot`, I would expect to get 1 out of the 20 test cases wrong. I decided to use a majority vote strategy to estimate the test result, hoping that at least two of the three models would agree on the same answer. Using five or more odd number of models would have been better, but I don't know how much improvement that would yield.
 ```{r}
 # predict on test set using different models - use majority vote - hope at least 2/3 are alike
 pred_test1 <- predict(modFit1, test)
@@ -159,3 +182,54 @@ final_answer
 
 ```
 
+```{r}
+elapsed_initial_mod
+elapsed_mod_1
+elapsed_mod_2
+elapsed_mod_3
+
+
+```
+
+
+Actual submitted answers
+B
+A
+A *
+A *
+A
+E
+D
+?
+A
+A
+B
+C
+B
+A
+E
+E
+A
+B
+B
+B
+
+1 wrong as originally written
+2 more wrong for 5 fold crossvalidation & elimating variables <15% important
+1 more wrong for 5 fold crossvalidation & elimating variables <10% important
+1 more wrong for 10 fold crossvalidation & elimating variables <10% important
+1 more wrong for 5 fold crossvalidation & elimating variables <5% important
+
+
+# 10 fold, 3 repeats ~ 10 min w/o parallelization - ~2.7 min /w parallelation
+# 5 fold, 3 repeats ~1.2 min per model /w parallelation 94% accuracy with 60 variables (all)
+# 5 fold, 3 repeats ~27s per model /w parallelation 93% accuracy with 19 variables (> 15% importance)
+# 5 fold, 3 repeats ~43s per model /w parallelation 95% accuracy with 33 variables (> 10% importance)
+# 10 fold, 3 repeats ~1.4min per model /w parallelation 95% accuracy with 33 variables (> 10% importance)
+# 5 fold, 3 repeats ~1.2min per model /w parallelation 95% accuracy with 50 variables (> 5% importance)
+
+
+```{r}
+
+
+```
